@@ -74,7 +74,8 @@ class RTFM_loss(torch.nn.Module):
 
         loss_rtfm = torch.mean((loss_abn + loss_nor) ** 2)
 
-        loss_total = loss_cls + self.alpha * loss_rtfm
+        # loss_total = loss_cls + self.alpha * loss_rtfm
+        loss_total = loss_cls
 
         return loss_total
 

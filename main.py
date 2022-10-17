@@ -42,7 +42,9 @@ if __name__ == '__main__':
 
     test_info = {"epoch": [], "test_AUC": []}
     best_AUC = -1
-    output_path = ''   # put your own path here
+    output_path = './log/'   # put your own path here
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
     auc = test(test_loader, model, args, viz, device)
 
     for step in tqdm(

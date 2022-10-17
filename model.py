@@ -178,7 +178,7 @@ class Model(nn.Module):
         self.k_abn = self.num_segments // 10
         self.k_nor = self.num_segments // 10
 
-        self.Aggregate = Aggregate(len_feature=2048)
+        # self.Aggregate = Aggregate(len_feature=2048)
         self.fc1 = nn.Linear(n_features, 512)
         self.fc2 = nn.Linear(512, 128)
         self.fc3 = nn.Linear(128, 1)
@@ -198,7 +198,7 @@ class Model(nn.Module):
 
         out = out.view(-1, t, f)
 
-        out = self.Aggregate(out)
+        # out = self.Aggregate(out)
 
         out = self.drop_out(out)
 
@@ -234,6 +234,7 @@ class Model(nn.Module):
         #######  process abnormal videos -> select top3 feature magnitude  #######
         afea_magnitudes_drop = afea_magnitudes * select_idx
         idx_abn = torch.topk(afea_magnitudes_drop, k_abn, dim=1)[1]
+        # idx_abn = torch.topk(scores[self.batch_size:], k_abn, dim=1)[1].squeeze(-1)
         idx_abn_feat = idx_abn.unsqueeze(2).expand([-1, -1, abnormal_features.shape[2]])
 
         abnormal_features = abnormal_features.view(n_size, ncrops, t, f)
@@ -254,6 +255,7 @@ class Model(nn.Module):
         select_idx_normal = self.drop_out(select_idx_normal)
         nfea_magnitudes_drop = nfea_magnitudes * select_idx_normal
         idx_normal = torch.topk(nfea_magnitudes_drop, k_nor, dim=1)[1]
+        # idx_normal = torch.topk(scores[:self.batch_size], k_nor, dim=1)[1].squeeze(-1)
         idx_normal_feat = idx_normal.unsqueeze(2).expand([-1, -1, normal_features.shape[2]])
 
         normal_features = normal_features.view(n_size, ncrops, t, f)

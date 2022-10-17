@@ -6,11 +6,11 @@ import glob
 '''
 FOR UCF CRIME
 '''
-root_path = "/home/yu/yu_ssd/SH_Test_ten_crop_i3d/"
+root_path = "E:/137/dataset/VAD/ShanghaiTech/features/SH_Test_ten_crop_i3d/"
 dirs = os.listdir(root_path)
 
 def get_check_abnormal_list(root_path):
-    abnormal_path = 'test_frame_mask/'
+    abnormal_path = 'E:/137/dataset/VAD/ShanghaiTech/annotations/test_frame_mask/'
     abnormal_file = os.listdir(abnormal_path)
     print(len(abnormal_file))
     check_anomaly_files = []
@@ -26,12 +26,13 @@ def get_check_abnormal_list(root_path):
     print(check_anomaly_files)
     return check_anomaly_files
 
-with open('shanghai-i3d-test-10crop.list', 'w+') as f:
+with open('./list/shanghai-i3d-test-10crop.list', 'w+') as f:
     normal = []
     files = sorted(glob.glob(os.path.join(root_path, "*.npy")))
     check_anomaly_files = get_check_abnormal_list(root_path)
     count = 0
     for file in files:
+        file = file.replace('\\', '/')
         if not file in check_anomaly_files:  # Normal video
             normal.append(file)
         else:
