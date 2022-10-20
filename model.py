@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.init as torch_init
+from Transformer import *
 torch.set_default_tensor_type('torch.FloatTensor')
 
 def weight_init(m):
@@ -151,24 +152,99 @@ class Aggregate(nn.Module):
 
 
     def forward(self, x):
-            # x: (B, T, F)
-            out = x.permute(0, 2, 1)
-            residual = out
+        # x: (B, T, F)
+        out = x.permute(0, 2, 1)
+        residual = out
 
-            out1 = self.conv_1(out)
-            out2 = self.conv_2(out)
+        out1 = self.conv_1(out)
+        out2 = self.conv_2(out)
 
-            out3 = self.conv_3(out)
-            out_d = torch.cat((out1, out2, out3), dim = 1)
-            out = self.conv_4(out)
-            out = self.non_local(out)
-            out = torch.cat((out_d, out), dim=1)
-            out = self.conv_5(out)   # fuse all the features together
-            out = out + residual
-            out = out.permute(0, 2, 1)
-            # out: (B, T, 1)
+        out3 = self.conv_3(out)
+        out_d = torch.cat((out1, out2, out3), dim = 1)
+        out = self.conv_4(out)
+        out = self.non_local(out)
+        out = torch.cat((out_d, out), dim=1)
+        out = self.conv_5(out)   # fuse all the features together
+        out = out + residual
+        out = out.permute(0, 2, 1)
+        # out: (B, T, 1)
 
-            return out
+        return out
+
+
+class TemporalConsensus(nn.Module):
+    def __init__(self, len_feature, hid_dim):
+        super().__init__()
+
+        nhead = 4
+        dropout = 0.1
+        ffn_dim = hid_dim
+        bn = nn.BatchNorm1d
+        self.hid_dim = hid_dim
+        self.len_feature = len_feature
+
+        self.fc_v = nn.Linear(self.len_feature, hid_dim)
+        self.cma = SelfAttentionBlock(TransformerLayer(hid_dim, MultiHeadAttention(nhead, hid_dim), PositionwiseFeedForward(hid_dim, ffn_dim), dropout))
+
+        # self.fc_v2 = nn.Linear(self.len_feature, hid_dim)
+        self.conv_1 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=3, stride=1, dilation=1, padding=1), bn(self.hid_dim), nn.ReLU())
+        self.conv_2 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=3, stride=1, dilation=2, padding=2), bn(self.hid_dim), nn.ReLU())
+        self.conv_3 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=3, stride=1, dilation=4, padding=4), bn(self.hid_dim), nn.ReLU())
+
+    def forward(self, x):
+        # x: (B, T, F)
+
+        x1 = self.fc_v(x)
+        out_long = self.cma(x1)
+
+        # x2 = self.fc_v2(x)
+        x2 = x1.permute(0, 2, 1)
+        out1 = self.conv_1(x2) + x2
+        out2 = self.conv_2(x2) + x2
+        out3 = self.conv_3(x2) + x2
+        out_short = torch.cat([out1, out2, out3], dim=1)
+        out_short = out_short.permute(0, 2, 1)
+
+        return torch.cat([out_long, out_short], dim=2)
+
+
+class AttentionMIL(nn.Module):
+
+    def __init__(self, D, input_dim):
+        super(AttentionMIL, self).__init__()
+        self.L = input_dim
+        self.D = D
+        self.K = 1
+
+        self.softmax = nn.Softmax(dim=2)
+
+        self.attention = nn.Sequential(nn.Linear(self.L, self.D), nn.Tanh(), nn.Linear(self.D, self.K))
+
+        self.classifier = nn.Sequential(nn.Linear(self.L * self.K, 1), nn.Sigmoid())
+
+    def forward(self, x):
+        # (b, n, L)
+        A = self.attention(x)  # (b, n, 1)
+        A = torch.transpose(A, 2, 1)  # (b, 1, n)
+        A = self.softmax(A)  # softmax over N
+
+        M = torch.bmm(A, x)  # (b, 1, L)
+
+        Y_prob = self.classifier(M).squeeze(-1).squeeze(-1)  # (b, 1, 1) -> (b)
+        Y_hat = torch.ge(Y_prob, 0.5).float()
+
+        return Y_prob, Y_hat, A.squeeze(1)
+
+    def calculate(self, X, Y):
+        Y = Y.float()
+
+        Y_prob, Y_hat, A = self.forward(X)
+        Y_prob = torch.clamp(Y_prob, min=1e-5, max=1. - 1e-5)
+        neg_log_likelihood = -1. * (Y * torch.log(Y_prob) + (1. - Y) * torch.log(1. - Y_prob))  # negative log bernoulli
+        error = 1. - Y_hat.eq(Y).cpu().float().mean().item()
+
+        return neg_log_likelihood.mean(), A, error, Y_prob, Y_hat
+
 
 class Model(nn.Module):
     def __init__(self, n_features, batch_size):
@@ -178,17 +254,23 @@ class Model(nn.Module):
         self.k_abn = self.num_segments // 10
         self.k_nor = self.num_segments // 10
 
-        # self.Aggregate = Aggregate(len_feature=2048)
-        self.fc1 = nn.Linear(n_features, 512)
-        self.fc2 = nn.Linear(512, 128)
-        self.fc3 = nn.Linear(128, 1)
+        hid_dim = 128
+        self.temporal_consensus = TemporalConsensus(n_features, hid_dim)
+        self.fc = nn.Linear(hid_dim * 4, 1)
+
+        # self.attn_model = AttentionMIL(256, hid_dim * 4)
+
+        # self.Aggregate = Aggregate(len_feature=n_features)
+        # self.fc1 = nn.Linear(n_features, 512)
+        # self.fc2 = nn.Linear(512, 128)
+        # self.fc3 = nn.Linear(128, 1)
 
         self.drop_out = nn.Dropout(0.7)
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
         self.apply(weight_init)
 
-    def forward(self, inputs):
+    def forward(self, inputs, labels=None):
 
         k_abn = self.k_abn
         k_nor = self.k_nor
@@ -198,16 +280,27 @@ class Model(nn.Module):
 
         out = out.view(-1, t, f)
 
+        out = self.temporal_consensus(out)
+        f = out.shape[-1]
+
         # out = self.Aggregate(out)
 
         out = self.drop_out(out)
 
+        neg_log_likelihood = torch.tensor(0.)
+        attn = torch.zeros(bs, t)
+        # if labels != None:
+        #     neg_log_likelihood, attn, _, _, _ = self.attn_model.calculate(out.view(bs, ncrops, t, f).mean(1), labels)
+        # else:
+        #     _, _, attn = self.attn_model(out.view(bs, ncrops, t, f).mean(1))
+
         features = out
-        scores = self.relu(self.fc1(features))
-        scores = self.drop_out(scores)
-        scores = self.relu(self.fc2(scores))
-        scores = self.drop_out(scores)
-        scores = self.sigmoid(self.fc3(scores))
+        scores = self.sigmoid(self.fc(features))
+        # scores = self.relu(self.fc1(features))
+        # scores = self.drop_out(scores)
+        # scores = self.relu(self.fc2(scores))
+        # scores = self.drop_out(scores)
+        # scores = self.sigmoid(self.fc3(scores))
         scores = scores.view(bs, ncrops, -1).mean(1)
         scores = scores.unsqueeze(dim=2)
 
@@ -218,6 +311,7 @@ class Model(nn.Module):
         abnormal_scores = scores[self.batch_size:]
 
         feat_magnitudes = torch.norm(features, p=2, dim=2)
+        # feat_magnitudes = torch.norm(features, p=1, dim=2)
         feat_magnitudes = feat_magnitudes.view(bs, ncrops, -1).mean(1)
         nfea_magnitudes = feat_magnitudes[0:self.batch_size]  # normal feature magnitudes
         afea_magnitudes = feat_magnitudes[self.batch_size:]  # abnormal feature magnitudes
@@ -234,7 +328,8 @@ class Model(nn.Module):
         #######  process abnormal videos -> select top3 feature magnitude  #######
         afea_magnitudes_drop = afea_magnitudes * select_idx
         idx_abn = torch.topk(afea_magnitudes_drop, k_abn, dim=1)[1]
-        # idx_abn = torch.topk(scores[self.batch_size:], k_abn, dim=1)[1].squeeze(-1)
+        # idx_abn = torch.topk(attn[self.batch_size:] * self.drop_out(torch.ones_like(attn[self.batch_size:])), k_abn, dim=1)[1]
+        # idx_abn = torch.topk(scores[self.batch_size:] * self.drop_out(torch.ones_like(scores[self.batch_size:])), k_abn, dim=1)[1].squeeze(-1)
         idx_abn_feat = idx_abn.unsqueeze(2).expand([-1, -1, abnormal_features.shape[2]])
 
         abnormal_features = abnormal_features.view(n_size, ncrops, t, f)
@@ -255,7 +350,8 @@ class Model(nn.Module):
         select_idx_normal = self.drop_out(select_idx_normal)
         nfea_magnitudes_drop = nfea_magnitudes * select_idx_normal
         idx_normal = torch.topk(nfea_magnitudes_drop, k_nor, dim=1)[1]
-        # idx_normal = torch.topk(scores[:self.batch_size], k_nor, dim=1)[1].squeeze(-1)
+        # idx_normal = torch.topk(attn[:self.batch_size] * self.drop_out(torch.ones_like(attn[:self.batch_size])), k_nor, dim=1)[1]
+        # idx_normal = torch.topk(scores[:self.batch_size] * self.drop_out(torch.ones_like(scores[:self.batch_size])), k_nor, dim=1)[1].squeeze(-1)
         idx_normal_feat = idx_normal.unsqueeze(2).expand([-1, -1, normal_features.shape[2]])
 
         normal_features = normal_features.view(n_size, ncrops, t, f)
@@ -272,4 +368,16 @@ class Model(nn.Module):
         feat_select_abn = total_select_abn_feature
         feat_select_normal = total_select_nor_feature
 
-        return score_abnormal, score_normal, feat_select_abn, feat_select_normal, feat_select_abn, feat_select_abn, scores, feat_select_abn, feat_select_abn, feat_magnitudes
+        """
+        Returns:
+            score_abnormal: (b, 1) mean of (b, 3, 1)
+            score_normal: (b, 1) mean of (b, 3, 1)
+            feat_select_abn: (b * 10, 3, d)
+            feat_select_normal: (b * 10, 3, d)
+            scores: (b, n, 1)
+            feat_magnitudes: (b * 10, n, 1)
+            feat_magnitudes: (b * 10, n, d)
+            attn: (b, n)
+        以上不是准确的shape, 可以看出意义
+        """
+        return score_abnormal, score_normal, feat_select_abn, feat_select_normal, scores, feat_magnitudes, features, attn, neg_log_likelihood

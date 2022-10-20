@@ -4,7 +4,8 @@ import torch.nn.functional as F
 torch.set_default_tensor_type('torch.FloatTensor')
 from torch.nn import L1Loss
 from torch.nn import MSELoss
-
+from CMA_MIL import CMAL
+from CMIL import CMIL
 
 
 def sparsity(arr, batch_size, lamda2):
@@ -80,36 +81,74 @@ class RTFM_loss(torch.nn.Module):
         return loss_total
 
 
-def train(nloader, aloader, model, batch_size, optimizer, viz, device):
+def train(nloader, aloader, model, batch_size, optimizer, viz, device, args):
     with torch.set_grad_enabled(True):
         model.train()
+        for i, ((ninput, nlabel), (ainput, alabel)) in enumerate(zip(nloader, aloader)):
+            input = torch.cat((ninput, ainput), 0).to(device)
 
-        ninput, nlabel = next(nloader)
-        ainput, alabel = next(aloader)
+            # bs, ncrops, t, f = input.size()
+            # seq_len = torch.sum(torch.max(torch.abs(input[:, 0]), dim=2)[0] > 0, 1)
 
-        input = torch.cat((ninput, ainput), 0).to(device)
+            score_abnormal, score_normal, feat_select_abn, feat_select_normal, scores, feat_magnitudes, features, attn, neg_log_likelihood = model(input, labels=torch.cat((nlabel, alabel), 0).cuda())  # b*32  x 2048
 
-        score_abnormal, score_normal, feat_select_abn, feat_select_normal, feat_abn_bottom, \
-        feat_normal_bottom, scores, scores_nor_bottom, scores_nor_abn_bag, _ = model(input)  # b*32  x 2048
+            scores = scores.view(batch_size * 32 * 2, -1)
 
-        scores = scores.view(batch_size * 32 * 2, -1)
+            scores = scores.squeeze()
+            abn_scores = scores[batch_size * 32:]
 
-        scores = scores.squeeze()
-        abn_scores = scores[batch_size * 32:]
+            nlabel = nlabel[0:batch_size]
+            alabel = alabel[0:batch_size]
 
-        nlabel = nlabel[0:batch_size]
-        alabel = alabel[0:batch_size]
+            loss_criterion = RTFM_loss(0.0001, 100)
+            loss_sparse = sparsity(abn_scores, batch_size, 8e-3)
+            loss_smooth = smooth(abn_scores, 8e-4)
+            cls_loss = loss_criterion(score_normal, score_abnormal, nlabel, alabel, feat_select_normal, feat_select_abn)
+            cost = cls_loss + loss_smooth + loss_sparse + neg_log_likelihood
 
-        loss_criterion = RTFM_loss(0.0001, 100)
-        loss_sparse = sparsity(abn_scores, batch_size, 8e-3)
-        loss_smooth = smooth(abn_scores, 8e-4)
-        cost = loss_criterion(score_normal, score_abnormal, nlabel, alabel, feat_select_normal, feat_select_abn) + loss_smooth + loss_sparse
+            # loss_a2b, loss_a2n = CMIL(torch.cat([score_normal, score_abnormal], dim=0).squeeze(-1), scores.view(batch_size * 2, 32), seq_len, features.view(batch_size * 2, 10, 32, -1).mean(dim=1))
 
-        viz.plot_lines('loss', cost.item())
-        viz.plot_lines('smooth loss', loss_smooth.item())
-        viz.plot_lines('sparsity loss', loss_sparse.item())
-        optimizer.zero_grad()
-        cost.backward()
-        optimizer.step()
+            optimizer.zero_grad()
+            cost.backward()
+            optimizer.step()
+
+            if i % args.plot_freq == 0:
+                viz.plot_lines('loss', cost.item())
+                # viz.plot_lines('loss_a2b', loss_a2b.item())
+                # viz.plot_lines('loss_a2n', loss_a2n.item())
+                viz.plot_lines('cls_loss', cls_loss.item())
+                # viz.plot_lines('neg_log_likelihood', neg_log_likelihood.item())
+                viz.plot_lines('smooth loss', loss_smooth.item())
+                viz.plot_lines('sparsity loss', loss_sparse.item())
 
 
+# def train(nloader, aloader, model, batch_size, optimizer, viz, device):
+#     criterion = torch.nn.BCELoss()
+#     lamda_a2b = 1.0
+#     lamda_a2n = 1.0
+#     with torch.set_grad_enabled(True):
+#         model.train()
+
+#         ninput, nlabel = next(nloader)
+#         ainput, alabel = next(aloader)
+
+#         input = torch.cat((ninput, ainput), 0).to(device)
+#         bs, ncrops, t, f = input.size()
+#         label = torch.cat([torch.repeat_interleave(nlabel, ncrops), torch.repeat_interleave(alabel, ncrops)], dim=0).to(device)
+
+#         seq_len = torch.sum(torch.max(torch.abs(input.view(-1, t, f)), dim=2)[0] > 0, 1)
+
+#         mmil_logits, visual_logits, visual_rep = model(input, seq_len)
+#         visual_logits = visual_logits.squeeze()
+#         mmil_logits = mmil_logits.squeeze()
+#         clsloss = criterion(mmil_logits, label)
+#         cmaloss_a2b, cmaloss_a2n = CMAL(mmil_logits, visual_logits, seq_len, visual_rep)
+#         total_loss = clsloss + lamda_a2b * cmaloss_a2b + lamda_a2n * cmaloss_a2n
+#         # total_loss = clsloss
+
+#         viz.plot_lines('loss', total_loss.item())
+#         viz.plot_lines('cmaloss_a2b', cmaloss_a2b.item())
+#         viz.plot_lines('cmaloss_a2n', cmaloss_a2n.item())
+#         optimizer.zero_grad()
+#         total_loss.backward()
+#         optimizer.step()
