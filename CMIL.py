@@ -18,25 +18,25 @@ def CMIL(scores, visual_logits, seq_len, visual_rep):
     visual_nor = torch.zeros(0).cuda()
     for i in range(visual_logits.shape[0]):
         if scores[i] > 0.5:
-            cur_visual_inverse_topk, cur_visual_inverse_topk_indices = torch.topk(visual_logits[i][:seq_len[i]], k=int(seq_len[i] // 16 + 1), largest=False)
+            cur_visual_inverse_topk, cur_visual_inverse_topk_indices = torch.topk(visual_logits[i][:seq_len[i]], k=int(torch.div(seq_len[i], 16, rounding_mode='trunc') + 1), largest=False)
             cur_visual_inverse_rep_topk = visual_rep[i][cur_visual_inverse_topk_indices]
             # cur_dim = cur_visual_inverse_rep_topk.size()
             # cur_visual_inverse_rep_topk = torch.mean(cur_visual_inverse_rep_topk, 0, keepdim=True).expand(cur_dim)
             visual_bgd = torch.cat((visual_bgd, cur_visual_inverse_rep_topk), 0)
 
-            cur_visual_topk, cur_visual_topk_indices = torch.topk(visual_logits[i][:seq_len[i]], k=int(seq_len[i] // 16 + 1), largest=True)
+            cur_visual_topk, cur_visual_topk_indices = torch.topk(visual_logits[i][:seq_len[i]], k=int(torch.div(seq_len[i], 16, rounding_mode='trunc') + 1), largest=True)
             cur_visual_rep_topk = visual_rep[i][cur_visual_topk_indices]
             # cur_dim = cur_visual_rep_topk.size()
             # cur_visual_rep_topk = torch.mean(cur_visual_rep_topk, 0, keepdim=True).expand(cur_dim)
             visual_abn = torch.cat((visual_abn, cur_visual_rep_topk), 0)
         else:
-            cur_visual_inverse_topk, cur_visual_inverse_topk_indices = torch.topk(visual_logits[i][:seq_len[i]], k=int(seq_len[i] // 16 + 1), largest=False)
+            cur_visual_inverse_topk, cur_visual_inverse_topk_indices = torch.topk(visual_logits[i][:seq_len[i]], k=int(torch.div(seq_len[i], 16, rounding_mode='trunc') + 1), largest=False)
             cur_visual_inverse_rep_topk = visual_rep[i][cur_visual_inverse_topk_indices]
             # cur_dim = cur_visual_inverse_rep_topk.size()
             # cur_visual_inverse_rep_topk = torch.mean(cur_visual_inverse_rep_topk, 0, keepdim=True).expand(cur_dim)
             visual_bgd = torch.cat((visual_bgd, cur_visual_inverse_rep_topk), 0)
 
-            cur_visual_topk, cur_visual_topk_indices = torch.topk(visual_logits[i][:seq_len[i]], k=int(seq_len[i] // 16 + 1), largest=True)
+            cur_visual_topk, cur_visual_topk_indices = torch.topk(visual_logits[i][:seq_len[i]], k=int(torch.div(seq_len[i], 16, rounding_mode='trunc') + 1), largest=True)
             cur_visual_rep_topk = visual_rep[i][cur_visual_topk_indices]
             # cur_dim = cur_visual_rep_topk.size()
             # cur_visual_rep_topk = torch.mean(cur_visual_rep_topk, 0, keepdim=True).expand(cur_dim)

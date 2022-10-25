@@ -186,7 +186,7 @@ class TemporalConsensus(nn.Module):
         self.fc_v = nn.Linear(self.len_feature, hid_dim)
         self.cma = SelfAttentionBlock(TransformerLayer(hid_dim, MultiHeadAttention(nhead, hid_dim), PositionwiseFeedForward(hid_dim, ffn_dim), dropout))
 
-        # self.fc_v2 = nn.Linear(self.len_feature, hid_dim)
+        self.fc_v2 = nn.Linear(self.len_feature, hid_dim)
         self.conv_1 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=3, stride=1, dilation=1, padding=1), bn(self.hid_dim), nn.ReLU())
         self.conv_2 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=3, stride=1, dilation=2, padding=2), bn(self.hid_dim), nn.ReLU())
         self.conv_3 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=3, stride=1, dilation=4, padding=4), bn(self.hid_dim), nn.ReLU())
@@ -197,8 +197,8 @@ class TemporalConsensus(nn.Module):
         x1 = self.fc_v(x)
         out_long = self.cma(x1)
 
-        # x2 = self.fc_v2(x)
-        x2 = x1.permute(0, 2, 1)
+        x2 = self.fc_v2(x)
+        x2 = x2.permute(0, 2, 1)
         out1 = self.conv_1(x2) + x2
         out2 = self.conv_2(x2) + x2
         out3 = self.conv_3(x2) + x2

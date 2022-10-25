@@ -23,6 +23,8 @@ def test(dataloader, model, args, viz, device):
             gt = np.load('list/gt-ucf.npy')
         elif args.dataset == 'xdv':
             gt = np.load('list/gt-xdv.npy')
+        elif args.dataset == 'my_ucf':
+            gt = np.load('list/my_gt-ucf.npy')
 
         pred = list(pred.cpu().detach().numpy())
         pred = np.repeat(np.array(pred), 16)
@@ -36,14 +38,24 @@ def test(dataloader, model, args, viz, device):
         pr_auc = auc(recall, precision)
         # np.save('precision.npy', precision)
         # np.save('recall.npy', recall)
-        viz.plot_lines('pr_auc', pr_auc)
-        viz.plot_lines('auc', rec_auc)
-        viz.lines('scores', pred)
-        viz.lines('gt', gt)
+        # viz.plot_lines('pr_auc', pr_auc)
+        # viz.plot_lines('auc', rec_auc)
+        # viz.lines('scores', pred)
+        # viz.lines('gt', gt)
         # viz.lines('attn', attn[0])
-        viz.lines('roc', tpr, fpr)
-        viz.lines('p-r', precision, recall)
-        return rec_auc
+        # viz.lines('roc', tpr, fpr)
+        # viz.lines('p-r', precision, recall)
+
+        results = {
+            'pr_auc': pr_auc,
+            'auc': rec_auc,
+            'scores': pred,
+            'gt': gt,
+            'roc': (tpr, fpr),
+            'p-r': (precision, recall)
+        }
+
+        return rec_auc, results
 
 
 # def test(dataloader, model, args, viz, device):

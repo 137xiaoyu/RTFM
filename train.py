@@ -53,73 +53,75 @@ class RTFM_loss(torch.nn.Module):
         super(RTFM_loss, self).__init__()
         self.alpha = alpha
         self.margin = margin
-        self.sigmoid = torch.nn.Sigmoid()
-        self.mae_criterion = SigmoidMAELoss()
-        self.criterion = torch.nn.BCELoss()
 
-    def forward(self, score_normal, score_abnormal, nlabel, alabel, feat_n, feat_a):
-        label = torch.cat((nlabel, alabel), 0)
-        score_abnormal = score_abnormal
-        score_normal = score_normal
-
-        score = torch.cat((score_normal, score_abnormal), 0)
-        score = score.squeeze()
-
-        label = label.cuda()
-
-        loss_cls = self.criterion(score, label)  # BCE loss in the score space
-
+    def forward(self, feat_n, feat_a):
         loss_abn = torch.abs(self.margin - torch.norm(torch.mean(feat_a, dim=1), p=2, dim=1))
 
         loss_nor = torch.norm(torch.mean(feat_n, dim=1), p=2, dim=1)
 
         loss_rtfm = torch.mean((loss_abn + loss_nor) ** 2)
 
-        # loss_total = loss_cls + self.alpha * loss_rtfm
-        loss_total = loss_cls
-
-        return loss_total
+        return self.alpha * loss_rtfm
 
 
 def train(nloader, aloader, model, batch_size, optimizer, viz, device, args):
     with torch.set_grad_enabled(True):
         model.train()
-        for i, ((ninput, nlabel), (ainput, alabel)) in enumerate(zip(nloader, aloader)):
-            input = torch.cat((ninput, ainput), 0).to(device)
 
-            # bs, ncrops, t, f = input.size()
-            # seq_len = torch.sum(torch.max(torch.abs(input[:, 0]), dim=2)[0] > 0, 1)
+        ninput, nlabel = next(nloader)
+        ainput, alabel = next(aloader)
+        label = torch.cat((nlabel, alabel), 0).cuda()  # (b)
 
-            score_abnormal, score_normal, feat_select_abn, feat_select_normal, scores, feat_magnitudes, features, attn, neg_log_likelihood = model(input, labels=torch.cat((nlabel, alabel), 0).cuda())  # b*32  x 2048
+        input = torch.cat((ninput, ainput), 0).to(device)
 
-            scores = scores.view(batch_size * 32 * 2, -1)
+        # bs, ncrops, t, f = input.size()
+        seq_len = torch.sum(torch.max(torch.abs(input[:, 0]), dim=2)[0] > 0, 1)
 
-            scores = scores.squeeze()
-            abn_scores = scores[batch_size * 32:]
+        score_abnormal, score_normal, feat_select_abn, feat_select_normal, scores, feat_magnitudes, features, attn, neg_log_likelihood = model(input, labels=torch.cat((nlabel, alabel), 0).cuda())  # b*32  x 2048
+        score = torch.cat((score_normal, score_abnormal), 0).squeeze()  # (b, 1) mean of (b, 3, 1) -> (b)
 
-            nlabel = nlabel[0:batch_size]
-            alabel = alabel[0:batch_size]
+        scores = scores.view(batch_size * 32 * 2, -1).squeeze()  # (b, n, 1) -> (b * n)
 
-            loss_criterion = RTFM_loss(0.0001, 100)
-            loss_sparse = sparsity(abn_scores, batch_size, 8e-3)
-            loss_smooth = smooth(abn_scores, 8e-4)
-            cls_loss = loss_criterion(score_normal, score_abnormal, nlabel, alabel, feat_select_normal, feat_select_abn)
-            cost = cls_loss + loss_smooth + loss_sparse + neg_log_likelihood
+        abn_scores = scores[batch_size * 32:]
 
-            # loss_a2b, loss_a2n = CMIL(torch.cat([score_normal, score_abnormal], dim=0).squeeze(-1), scores.view(batch_size * 2, 32), seq_len, features.view(batch_size * 2, 10, 32, -1).mean(dim=1))
+        nlabel = nlabel[0:batch_size]
+        alabel = alabel[0:batch_size]
 
-            optimizer.zero_grad()
-            cost.backward()
-            optimizer.step()
+        cls_criterion = torch.nn.BCELoss()
+        rtfm_criterion = RTFM_loss(0.0001, 100)
+        loss_sparse = sparsity(abn_scores, batch_size, 8e-3)
+        loss_smooth = smooth(abn_scores, 8e-4)
+        cls_loss = cls_criterion(score, label)
 
-            if i % args.plot_freq == 0:
-                viz.plot_lines('loss', cost.item())
-                # viz.plot_lines('loss_a2b', loss_a2b.item())
-                # viz.plot_lines('loss_a2n', loss_a2n.item())
-                viz.plot_lines('cls_loss', cls_loss.item())
-                # viz.plot_lines('neg_log_likelihood', neg_log_likelihood.item())
-                viz.plot_lines('smooth loss', loss_smooth.item())
-                viz.plot_lines('sparsity loss', loss_sparse.item())
+        rtfm_loss = rtfm_criterion(feat_select_normal, feat_select_abn)
+        loss_a2b, loss_a2n = CMIL(label, scores.view(batch_size * 2, 32), seq_len, features.view(batch_size * 2, 10, 32, -1).mean(dim=1))
+
+        cost = cls_loss + loss_smooth + loss_sparse + neg_log_likelihood
+
+        # viz.plot_lines('loss', cost.item())
+        # viz.plot_lines('loss_a2b', loss_a2b.item())
+        # viz.plot_lines('loss_a2n', loss_a2n.item())
+        # viz.plot_lines('cls_loss', cls_loss.item())
+        # viz.plot_lines('rtfm_loss', rtfm_loss.item())
+        # viz.plot_lines('neg_log_likelihood', neg_log_likelihood.item())
+        # viz.plot_lines('smooth loss', loss_smooth.item())
+        # viz.plot_lines('sparsity loss', loss_sparse.item())
+        optimizer.zero_grad()
+        cost.backward()
+        optimizer.step()
+
+    losses = {
+        'loss': cost,
+        'loss_a2b': loss_a2b,
+        'loss_a2n': loss_a2n,
+        'cls_loss': cls_loss,
+        'rtfm_loss': rtfm_loss,
+        'neg_log_likelihood': neg_log_likelihood,
+        'smooth loss': loss_smooth,
+        'sparsity loss': loss_sparse
+    }
+
+    return losses
 
 
 # def train(nloader, aloader, model, batch_size, optimizer, viz, device):
