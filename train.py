@@ -77,8 +77,9 @@ def train(nloader, aloader, model, batch_size, optimizer, viz, device, args):
         # bs, ncrops, t, f = input.size()
         seq_len = torch.sum(torch.max(torch.abs(input[:, 0]), dim=2)[0] > 0, 1)
 
-        score_abnormal, score_normal, feat_select_abn, feat_select_normal, scores, feat_magnitudes, features, attn, neg_log_likelihood = model(input, labels=torch.cat((nlabel, alabel), 0).cuda())  # b*32  x 2048
+        score_abnormal, score_normal, feat_select_abn, feat_select_normal, scores, feat_magnitudes, features, attn, neg_log_likelihood, cls_scores = model(input, labels=torch.cat((nlabel, alabel), 0).cuda())  # b*32  x 2048
         score = torch.cat((score_normal, score_abnormal), 0).squeeze()  # (b, 1) mean of (b, 3, 1) -> (b)
+        cls_scores = cls_scores.squeeze()  # (b, 1, 1) -> (b)
 
         scores = scores.view(batch_size * 32 * 2, -1).squeeze()  # (b, n, 1) -> (b * n)
 
@@ -92,11 +93,12 @@ def train(nloader, aloader, model, batch_size, optimizer, viz, device, args):
         loss_sparse = sparsity(abn_scores, batch_size, 8e-3)
         loss_smooth = smooth(abn_scores, 8e-4)
         cls_loss = cls_criterion(score, label)
+        cls_loss2 = cls_criterion(cls_scores, label)
 
         rtfm_loss = rtfm_criterion(feat_select_normal, feat_select_abn)
         loss_a2b, loss_a2n = CMIL(label, scores.view(batch_size * 2, 32), seq_len, features.view(batch_size * 2, 10, 32, -1).mean(dim=1))
 
-        cost = cls_loss + loss_smooth + loss_sparse + neg_log_likelihood
+        cost = cls_loss + cls_loss2 + loss_smooth + loss_sparse + neg_log_likelihood
 
         # viz.plot_lines('loss', cost.item())
         # viz.plot_lines('loss_a2b', loss_a2b.item())
@@ -115,6 +117,7 @@ def train(nloader, aloader, model, batch_size, optimizer, viz, device, args):
         'loss_a2b': loss_a2b,
         'loss_a2n': loss_a2n,
         'cls_loss': cls_loss,
+        'cls_loss2': cls_loss2,
         'rtfm_loss': rtfm_loss,
         'neg_log_likelihood': neg_log_likelihood,
         'smooth loss': loss_smooth,

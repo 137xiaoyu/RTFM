@@ -2,7 +2,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='RTFM')
 parser.add_argument('--feat-extractor', default='i3d', choices=['i3d', 'c3d'])
-parser.add_argument('--feature-size', type=int, default=1024, help='size of feature (default: 2048)')
+parser.add_argument('--feature-size', type=int, default=2048, help='size of feature (default: 2048)')
 parser.add_argument('--modality', default='RGB', help='the type of the input, RGB,AUDIO, or MIX')
 # parser.add_argument('--rgb-list', default='list/shanghai-i3d-train-10crop.list', help='list of rgb features ')
 # parser.add_argument('--test-rgb-list', default='list/shanghai-i3d-test-10crop.list', help='list of test rgb features ')

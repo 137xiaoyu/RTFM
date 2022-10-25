@@ -86,6 +86,7 @@ if __name__ == '__main__':
             viz.plot_lines('loss_a2b', losses['loss_a2b'].item())
             viz.plot_lines('loss_a2n', losses['loss_a2n'].item())
             viz.plot_lines('cls_loss', losses['cls_loss'].item())
+            viz.plot_lines('cls_loss2', losses['cls_loss2'].item())
             viz.plot_lines('rtfm_loss', losses['rtfm_loss'].item())
             viz.plot_lines('smooth loss', losses['smooth loss'].item())
             viz.plot_lines('sparsity loss', losses['sparsity loss'].item())

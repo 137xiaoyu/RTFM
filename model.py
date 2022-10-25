@@ -184,28 +184,36 @@ class TemporalConsensus(nn.Module):
         self.len_feature = len_feature
 
         self.fc_v = nn.Linear(self.len_feature, hid_dim)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, hid_dim))
         self.cma = SelfAttentionBlock(TransformerLayer(hid_dim, MultiHeadAttention(nhead, hid_dim), PositionwiseFeedForward(hid_dim, ffn_dim), dropout))
+        self.mlp_head = nn.Sequential(nn.LayerNorm(hid_dim), nn.Linear(hid_dim, 1))
 
         self.fc_v2 = nn.Linear(self.len_feature, hid_dim)
         self.conv_1 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=3, stride=1, dilation=1, padding=1), bn(self.hid_dim), nn.ReLU())
-        self.conv_2 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=3, stride=1, dilation=2, padding=2), bn(self.hid_dim), nn.ReLU())
-        self.conv_3 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=3, stride=1, dilation=4, padding=4), bn(self.hid_dim), nn.ReLU())
+        self.conv_2 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=5, stride=1, dilation=1, padding=2), bn(self.hid_dim), nn.ReLU())
+        self.conv_3 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=5, stride=1, dilation=2, padding=4), bn(self.hid_dim), nn.ReLU())
+        self.conv_4 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=5, stride=1, dilation=3, padding=6), bn(self.hid_dim), nn.ReLU())
 
     def forward(self, x):
         # x: (B, T, F)
 
+        cls_tokens = self.cls_token.repeat(x.shape[0], 1, 1)
         x1 = self.fc_v(x)
+        x1 = torch.cat([cls_tokens, x1], dim=1)  # (B, T + 1, F)
         out_long = self.cma(x1)
+        cls_out = self.mlp_head(out_long[:, 0])
+        out_long = out_long[:, 1:]
 
         x2 = self.fc_v2(x)
         x2 = x2.permute(0, 2, 1)
         out1 = self.conv_1(x2) + x2
         out2 = self.conv_2(x2) + x2
         out3 = self.conv_3(x2) + x2
-        out_short = torch.cat([out1, out2, out3], dim=1)
+        out4 = self.conv_4(x2) + x2
+        out_short = torch.cat([out1, out2, out3, out4], dim=1)
         out_short = out_short.permute(0, 2, 1)
 
-        return torch.cat([out_long, out_short], dim=2)
+        return torch.cat([out_long, out_short], dim=2), cls_out
 
 
 class AttentionMIL(nn.Module):
@@ -256,7 +264,7 @@ class Model(nn.Module):
 
         hid_dim = 128
         self.temporal_consensus = TemporalConsensus(n_features, hid_dim)
-        self.fc = nn.Linear(hid_dim * 4, 1)
+        self.fc = nn.Linear(hid_dim * 5, 1)
 
         # self.attn_model = AttentionMIL(256, hid_dim * 4)
 
@@ -280,7 +288,7 @@ class Model(nn.Module):
 
         out = out.view(-1, t, f)
 
-        out = self.temporal_consensus(out)
+        out, cls_out = self.temporal_consensus(out)
         f = out.shape[-1]
 
         # out = self.Aggregate(out)
@@ -295,6 +303,8 @@ class Model(nn.Module):
         #     _, _, attn = self.attn_model(out.view(bs, ncrops, t, f).mean(1))
 
         features = out
+        cls_scores = self.sigmoid(cls_out)  # (b * ncrops, 1)
+        cls_scores = cls_scores.view(bs, ncrops, -1).mean(1).unsqueeze(2)  # (b, 1, 1)
         scores = self.sigmoid(self.fc(features))
         # scores = self.relu(self.fc1(features))
         # scores = self.drop_out(scores)
@@ -378,6 +388,7 @@ class Model(nn.Module):
             feat_magnitudes: (b * 10, n, 1)
             feat_magnitudes: (b * 10, n, d)
             attn: (b, n)
+            cls_scores: (b, 1, 1)
         以上不是准确的shape, 可以看出意义
         """
-        return score_abnormal, score_normal, feat_select_abn, feat_select_normal, scores, feat_magnitudes, features, attn, neg_log_likelihood
+        return score_abnormal, score_normal, feat_select_abn, feat_select_normal, scores, feat_magnitudes, features, attn, neg_log_likelihood, cls_scores
