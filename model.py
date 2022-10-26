@@ -190,9 +190,8 @@ class TemporalConsensus(nn.Module):
 
         self.fc_v2 = nn.Linear(self.len_feature, hid_dim)
         self.conv_1 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=3, stride=1, dilation=1, padding=1), bn(self.hid_dim), nn.ReLU())
-        self.conv_2 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=5, stride=1, dilation=1, padding=2), bn(self.hid_dim), nn.ReLU())
-        self.conv_3 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=5, stride=1, dilation=2, padding=4), bn(self.hid_dim), nn.ReLU())
-        self.conv_4 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=5, stride=1, dilation=3, padding=6), bn(self.hid_dim), nn.ReLU())
+        self.conv_2 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=3, stride=1, dilation=2, padding=2), bn(self.hid_dim), nn.ReLU())
+        self.conv_3 = nn.Sequential(nn.Conv1d(in_channels=self.hid_dim, out_channels=self.hid_dim, kernel_size=3, stride=1, dilation=3, padding=3), bn(self.hid_dim), nn.ReLU())
 
     def forward(self, x):
         # x: (B, T, F)
@@ -209,8 +208,7 @@ class TemporalConsensus(nn.Module):
         out1 = self.conv_1(x2) + x2
         out2 = self.conv_2(x2) + x2
         out3 = self.conv_3(x2) + x2
-        out4 = self.conv_4(x2) + x2
-        out_short = torch.cat([out1, out2, out3, out4], dim=1)
+        out_short = torch.cat([out1, out2, out3], dim=1)
         out_short = out_short.permute(0, 2, 1)
 
         return torch.cat([out_long, out_short], dim=2), cls_out
@@ -264,7 +262,7 @@ class Model(nn.Module):
 
         hid_dim = 128
         self.temporal_consensus = TemporalConsensus(n_features, hid_dim)
-        self.fc = nn.Linear(hid_dim * 5, 1)
+        self.fc = nn.Linear(hid_dim * 4, 1)
 
         # self.attn_model = AttentionMIL(256, hid_dim * 4)
 

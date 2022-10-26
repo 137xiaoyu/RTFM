@@ -15,7 +15,7 @@ def test(dataloader, model, args, viz, device):
             cls_scores = cls_scores.squeeze(2).squeeze(0)  # (1, 1, 1) -> (1)
             logits = torch.squeeze(logits, 2)  # (1, n, 1) -> (1, n)
             logits = torch.squeeze(logits, 0)  # (1, n) -> (n)
-            sig = logits * cls_scores
+            sig = logits
             pred = torch.cat((pred, sig))
 
         if args.dataset == 'sht':

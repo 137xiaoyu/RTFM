@@ -98,7 +98,7 @@ def train(nloader, aloader, model, batch_size, optimizer, viz, device, args):
         rtfm_loss = rtfm_criterion(feat_select_normal, feat_select_abn)
         loss_a2b, loss_a2n = CMIL(label, scores.view(batch_size * 2, 32), seq_len, features.view(batch_size * 2, 10, 32, -1).mean(dim=1))
 
-        cost = cls_loss + cls_loss2 + loss_smooth + loss_sparse + neg_log_likelihood
+        cost = cls_loss + loss_smooth + loss_sparse + neg_log_likelihood
 
         # viz.plot_lines('loss', cost.item())
         # viz.plot_lines('loss_a2b', loss_a2b.item())

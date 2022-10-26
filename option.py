@@ -14,6 +14,6 @@ parser.add_argument('--workers', default=4, help='number of workers in dataloade
 parser.add_argument('--model-name', default='rtfm', help='name to save model')
 parser.add_argument('--pretrained-ckpt', default=None, help='ckpt for pretrained model')
 parser.add_argument('--num-classes', type=int, default=1, help='number of class')
-parser.add_argument('--dataset', default='ucf', help='dataset to train on (default: )')
+parser.add_argument('--dataset', default='sht', help='dataset to train on (default: )')
 parser.add_argument('--plot-freq', type=int, default=10, help='frequency of plotting (default: 10)')
 parser.add_argument('--max-epoch', type=int, default=15000, help='maximum iteration to train (default: 100)')
