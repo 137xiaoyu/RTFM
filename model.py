@@ -264,6 +264,12 @@ class Model(nn.Module):
         self.temporal_consensus = TemporalConsensus(n_features, hid_dim)
         self.fc = nn.Linear(hid_dim * 4, 1)
 
+        # self.fc1 = nn.Linear(hid_dim * 4, 128)
+        # self.fc2 = nn.Linear(128, 32)
+        # self.fc3 = nn.Linear(32, 1)
+
+        # self.metric_fc = nn.Linear(hid_dim * 4, 1)
+
         # self.attn_model = AttentionMIL(256, hid_dim * 4)
 
         # self.Aggregate = Aggregate(len_feature=n_features)
@@ -319,8 +325,9 @@ class Model(nn.Module):
         abnormal_scores = scores[self.batch_size:]
 
         feat_magnitudes = torch.norm(features, p=2, dim=2)
+        # feat_magnitudes = self.metric_fc(features)  # (b * 10, n, 1)
         # feat_magnitudes = torch.norm(features, p=1, dim=2)
-        feat_magnitudes = feat_magnitudes.view(bs, ncrops, -1).mean(1)
+        feat_magnitudes = feat_magnitudes.view(bs, ncrops, -1).mean(1)  # (b, n)
         nfea_magnitudes = feat_magnitudes[0:self.batch_size]  # normal feature magnitudes
         afea_magnitudes = feat_magnitudes[self.batch_size:]  # abnormal feature magnitudes
         n_size = nfea_magnitudes.shape[0]
@@ -335,7 +342,7 @@ class Model(nn.Module):
 
         #######  process abnormal videos -> select top3 feature magnitude  #######
         afea_magnitudes_drop = afea_magnitudes * select_idx
-        idx_abn = torch.topk(afea_magnitudes_drop, k_abn, dim=1)[1]
+        fm_select_abn, idx_abn = torch.topk(afea_magnitudes_drop, k_abn, dim=1)
         # idx_abn = torch.topk(attn[self.batch_size:] * self.drop_out(torch.ones_like(attn[self.batch_size:])), k_abn, dim=1)[1]
         # idx_abn = torch.topk(scores[self.batch_size:] * self.drop_out(torch.ones_like(scores[self.batch_size:])), k_abn, dim=1)[1].squeeze(-1)
         idx_abn_feat = idx_abn.unsqueeze(2).expand([-1, -1, abnormal_features.shape[2]])
@@ -357,7 +364,7 @@ class Model(nn.Module):
         select_idx_normal = torch.ones_like(nfea_magnitudes)
         select_idx_normal = self.drop_out(select_idx_normal)
         nfea_magnitudes_drop = nfea_magnitudes * select_idx_normal
-        idx_normal = torch.topk(nfea_magnitudes_drop, k_nor, dim=1)[1]
+        fm_select_nor, idx_normal = torch.topk(nfea_magnitudes_drop, k_nor, dim=1)
         # idx_normal = torch.topk(attn[:self.batch_size] * self.drop_out(torch.ones_like(attn[:self.batch_size])), k_nor, dim=1)[1]
         # idx_normal = torch.topk(scores[:self.batch_size] * self.drop_out(torch.ones_like(scores[:self.batch_size])), k_nor, dim=1)[1].squeeze(-1)
         idx_normal_feat = idx_normal.unsqueeze(2).expand([-1, -1, normal_features.shape[2]])
@@ -383,10 +390,12 @@ class Model(nn.Module):
             feat_select_abn: (b * 10, 3, d)
             feat_select_normal: (b * 10, 3, d)
             scores: (b, n, 1)
-            feat_magnitudes: (b * 10, n, 1)
-            feat_magnitudes: (b * 10, n, d)
+            fm_select_abn: (b, 3)
+            fm_select_nor: (b, 3)
+            feat_magnitudes: (b, n)
+            features: (b * 10, n, d)
             attn: (b, n)
             cls_scores: (b, 1, 1)
         以上不是准确的shape, 可以看出意义
         """
-        return score_abnormal, score_normal, feat_select_abn, feat_select_normal, scores, feat_magnitudes, features, attn, neg_log_likelihood, cls_scores
+        return score_abnormal, score_normal, feat_select_abn, feat_select_normal, scores, fm_select_abn, fm_select_nor, feat_magnitudes, features, attn, neg_log_likelihood, cls_scores

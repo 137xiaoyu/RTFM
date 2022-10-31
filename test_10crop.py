@@ -11,10 +11,9 @@ def test(dataloader, model, args, viz, device):
         for i, input in enumerate(dataloader):
             input = input.to(device)  # (b, 10, n, f)
             input = input.permute(0, 2, 1, 3)
-            score_abnormal, score_normal, feat_select_abn, feat_select_normal, logits, feat_magnitudes, features, attn, neg_log_likelihood, cls_scores = model(inputs=input)
-            cls_scores = cls_scores.squeeze(2).squeeze(0)  # (1, 1, 1) -> (1)
-            logits = torch.squeeze(logits, 2)  # (1, n, 1) -> (1, n)
-            logits = torch.squeeze(logits, 0)  # (1, n) -> (n)
+            score_abnormal, score_normal, feat_select_abn, feat_select_normal, logits, fm_select_abn, fm_select_nor, feat_magnitudes, features, attn, neg_log_likelihood, cls_scores = model(inputs=input)
+            cls_scores = cls_scores.squeeze()  # (1, 1, 1) -> ()
+            logits = logits.squeeze()  # (1, n, 1) -> (n)
             sig = logits
             pred = torch.cat((pred, sig))
 

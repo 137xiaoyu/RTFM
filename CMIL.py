@@ -41,10 +41,14 @@ def CMIL(scores, visual_logits, seq_len, visual_rep):
             # cur_dim = cur_visual_rep_topk.size()
             # cur_visual_rep_topk = torch.mean(cur_visual_rep_topk, 0, keepdim=True).expand(cur_dim)
             visual_nor = torch.cat((visual_nor, cur_visual_rep_topk), 0)
+    visual_abn_center = visual_abn.mean(dim=0, keepdim=True).expand(visual_abn.shape[0], -1)  # (1, d) expand
+    visual_nor_center = visual_nor.mean(dim=0, keepdim=True).expand(visual_abn.shape[0], -1)  # (1, d) expand
     cmals = InfoNCE(negative_mode='unpaired')
     if visual_nor.size(0) == 0 or visual_abn.size(0) == 0:
         return torch.tensor(0.0), torch.tensor(0.0)
     else:
-        loss_a2b = cmals(visual_abn, visual_abn, visual_bgd)
-        loss_a2n = cmals(visual_abn, visual_abn, visual_nor)
-        return loss_a2b, loss_a2n
+        loss_a2b = cmals(visual_abn, visual_abn_center, visual_bgd)
+        loss_a2n = cmals(visual_abn, visual_abn_center, visual_nor)
+        loss_n2b = cmals(visual_nor, visual_nor_center, visual_bgd)
+        loss_n2a = cmals(visual_nor, visual_nor_center, visual_abn)
+        return loss_a2b, loss_a2n, loss_n2b, loss_n2a

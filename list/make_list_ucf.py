@@ -2,10 +2,10 @@ import os
 import glob
 
 if __name__ == '__main__':
-    # root_path = 'D:/137/dataset/VAD/UCF_Crime/my_features/I3D-10crop/Train/'
-    # root_path = 'D:/137/dataset/VAD/UCF_Crime/my_features/I3D-10crop/Test/'
+    # root_path = 'D:/137/dataset/VAD/UCF_Crime/features/I3D-10crop/Train/'
+    root_path = 'D:/137/dataset/VAD/UCF_Crime/features/I3D-10crop/Test/'
     # root_path = '/home/wucx/dataset/VAD/UCF_Crime/features/I3D-10crop/Train/'
-    root_path = '/home/wucx/dataset/VAD/UCF_Crime/features/I3D-10crop/Test/'
+    # root_path = '/home/wucx/dataset/VAD/UCF_Crime/features/I3D-10crop/Test/'
     files = sorted(glob.glob(os.path.join(root_path, '*.npy')))
 
     count = 0

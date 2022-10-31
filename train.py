@@ -64,6 +64,22 @@ class RTFM_loss(torch.nn.Module):
         return self.alpha * loss_rtfm
 
 
+# class RTFM_loss(torch.nn.Module):
+#     def __init__(self, alpha, margin):
+#         super(RTFM_loss, self).__init__()
+#         self.alpha = alpha
+#         self.margin = margin
+#         self.criterion = torch.nn.MarginRankingLoss(margin)
+
+#     def forward(self, fm_n, fm_a):
+#         fm_n = torch.mean(fm_n, dim=1)  # (b, 3) -> (b)
+#         fm_a = torch.mean(fm_a, dim=1)  # (b, 3) -> (b)
+
+#         loss_rtfm = self.criterion(fm_a, fm_n, torch.ones_like(fm_a)) / fm_a.shape[0]
+
+#         return self.alpha * loss_rtfm
+
+
 def train(nloader, aloader, model, batch_size, optimizer, viz, device, args):
     with torch.set_grad_enabled(True):
         model.train()
@@ -77,11 +93,11 @@ def train(nloader, aloader, model, batch_size, optimizer, viz, device, args):
         # bs, ncrops, t, f = input.size()
         seq_len = torch.sum(torch.max(torch.abs(input[:, 0]), dim=2)[0] > 0, 1)
 
-        score_abnormal, score_normal, feat_select_abn, feat_select_normal, scores, feat_magnitudes, features, attn, neg_log_likelihood, cls_scores = model(input, labels=torch.cat((nlabel, alabel), 0).cuda())  # b*32  x 2048
+        score_abnormal, score_normal, feat_select_abn, feat_select_normal, scores, fm_select_abn, fm_select_nor, feat_magnitudes, features, attn, neg_log_likelihood, cls_scores = model(input, labels=torch.cat((nlabel, alabel), 0).cuda())  # b*32  x 2048
         score = torch.cat((score_normal, score_abnormal), 0).squeeze()  # (b, 1) mean of (b, 3, 1) -> (b)
         cls_scores = cls_scores.squeeze()  # (b, 1, 1) -> (b)
 
-        scores = scores.view(batch_size * 32 * 2, -1).squeeze()  # (b, n, 1) -> (b * n)
+        scores = scores.view(batch_size * 32 * 2)  # (b, n, 1) -> (b * n)
 
         abn_scores = scores[batch_size * 32:]
 
@@ -90,15 +106,22 @@ def train(nloader, aloader, model, batch_size, optimizer, viz, device, args):
 
         cls_criterion = torch.nn.BCELoss()
         rtfm_criterion = RTFM_loss(0.0001, 100)
+        # rtfm_criterion = RTFM_loss(0.2, 100)
         loss_sparse = sparsity(abn_scores, batch_size, 8e-3)
         loss_smooth = smooth(abn_scores, 8e-4)
         cls_loss = cls_criterion(score, label)
         cls_loss2 = cls_criterion(cls_scores, label)
 
         rtfm_loss = rtfm_criterion(feat_select_normal, feat_select_abn)
-        loss_a2b, loss_a2n = CMIL(label, scores.view(batch_size * 2, 32), seq_len, features.view(batch_size * 2, 10, 32, -1).mean(dim=1))
+        # rtfm_loss = rtfm_criterion(fm_select_nor, fm_select_abn)
+        loss_a2b, loss_a2n, loss_n2b, loss_n2a = CMIL(label, scores.view(batch_size * 2, 32), seq_len, features.view(batch_size * 2, 10, 32, -1).mean(dim=1))
 
-        cost = cls_loss + loss_smooth + loss_sparse + neg_log_likelihood
+        loss_a2b = loss_a2b * 0.1
+        loss_a2n = loss_a2n * 0.2
+        loss_n2b = loss_n2b * 0.1
+        loss_n2a = loss_n2a * 0.2
+
+        cost = cls_loss + loss_smooth + loss_sparse + loss_a2b + loss_a2n + loss_n2b + loss_n2a
 
         # viz.plot_lines('loss', cost.item())
         # viz.plot_lines('loss_a2b', loss_a2b.item())
@@ -116,6 +139,8 @@ def train(nloader, aloader, model, batch_size, optimizer, viz, device, args):
         'loss': cost,
         'loss_a2b': loss_a2b,
         'loss_a2n': loss_a2n,
+        'loss_n2b': loss_n2b,
+        'loss_n2a': loss_n2a,
         'cls_loss': cls_loss,
         'cls_loss2': cls_loss2,
         'rtfm_loss': rtfm_loss,

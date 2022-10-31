@@ -2,11 +2,11 @@ import os
 import glob
 
 if __name__ == '__main__':
-    # abnormal_path = 'E:/137/dataset/VAD/ShanghaiTech/annotations/test_frame_mask/'
-    # root_path = 'E:/137/dataset/VAD/ShanghaiTech/features/SH_Train_ten_crop_i3d/'
-    # root_path = 'E:/137/dataset/VAD/ShanghaiTech/features/SH_Test_ten_crop_i3d/'
-    abnormal_path = '/home/wucx/dataset/VAD/ShanghaiTech/annotations/test_frame_mask/'
-    root_path = '/home/wucx/dataset/VAD/ShanghaiTech/features/SH_Train_ten_crop_i3d/'
+    abnormal_path = 'D:/137/dataset/VAD/ShanghaiTech/annotations/test_frame_mask/'
+    root_path = 'D:/137/dataset/VAD/ShanghaiTech/features/SH_Train_ten_crop_i3d/'
+    # root_path = 'D:/137/dataset/VAD/ShanghaiTech/features/SH_Test_ten_crop_i3d/'
+    # abnormal_path = '/home/wucx/dataset/VAD/ShanghaiTech/annotations/test_frame_mask/'
+    # root_path = '/home/wucx/dataset/VAD/ShanghaiTech/features/SH_Train_ten_crop_i3d/'
     # root_path = '/home/wucx/dataset/VAD/ShanghaiTech/features/SH_Test_ten_crop_i3d/'
     files = sorted(glob.glob(os.path.join(root_path, '*.npy')))
 

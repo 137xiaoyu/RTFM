@@ -85,6 +85,8 @@ if __name__ == '__main__':
             viz.plot_lines('loss', losses['loss'].item())
             viz.plot_lines('loss_a2b', losses['loss_a2b'].item())
             viz.plot_lines('loss_a2n', losses['loss_a2n'].item())
+            viz.plot_lines('loss_n2b', losses['loss_n2b'].item())
+            viz.plot_lines('loss_n2a', losses['loss_n2a'].item())
             viz.plot_lines('cls_loss', losses['cls_loss'].item())
             viz.plot_lines('cls_loss2', losses['cls_loss2'].item())
             viz.plot_lines('rtfm_loss', losses['rtfm_loss'].item())
@@ -104,8 +106,8 @@ if __name__ == '__main__':
 
             if test_info["test_AUC"][-1] > best_AUC:
                 best_AUC = test_info["test_AUC"][-1]
-                torch.save(model.state_dict(), './ckpt/' + args.model_name + '{}-i3d.pkl'.format(step))
-                save_best_record(test_info, os.path.join(output_path, '{}-step-AUC.txt'.format(step)))
+                torch.save(model.state_dict(), './ckpt/' + args.dataset + '{}-i3d-{:.3f}.pkl'.format(step, best_AUC * 100))
+                # save_best_record(test_info, os.path.join(output_path, args.dataset + '{}-step-AUC.txt'.format(step)))
 
             print(f'\nauc {auc * 100:.3f}\tbest {best_AUC * 100:.3f}')
 
