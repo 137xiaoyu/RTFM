@@ -121,7 +121,7 @@ def train(nloader, aloader, model, batch_size, optimizer, viz, device, args):
         loss_n2b = loss_n2b * 0.1
         loss_n2a = loss_n2a * 0.2
 
-        cost = cls_loss + loss_smooth + loss_sparse + loss_a2b + loss_a2n + loss_n2b + loss_n2a
+        cost = cls_loss + loss_smooth + loss_sparse
 
         # viz.plot_lines('loss', cost.item())
         # viz.plot_lines('loss_a2b', loss_a2b.item())

@@ -25,6 +25,8 @@ def test(dataloader, model, args, viz, device):
             gt = np.load('list/gt-xdv.npy')
         elif args.dataset == 'my_ucf':
             gt = np.load('list/my_gt-ucf.npy')
+        elif args.dataset == 'my_sht':
+            gt = np.load('list/my_gt-sht.npy')
 
         pred = list(pred.cpu().detach().numpy())
         pred = np.repeat(np.array(pred), 16)

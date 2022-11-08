@@ -32,6 +32,11 @@ class Dataset(data.Dataset):
                 self.rgb_list_file = 'list/my_ucf-i3d-test.list'
             else:
                 self.rgb_list_file = 'list/my_ucf-i3d.list'
+        elif self.dataset == 'my_sht':
+            if test_mode:
+                self.rgb_list_file = 'list/my_shanghai-i3d-test-10crop.list'
+            else:
+                self.rgb_list_file = 'list/my_shanghai-i3d-train-10crop.list'
 
         self.tranform = transform
         self.test_mode = test_mode
@@ -78,6 +83,15 @@ class Dataset(data.Dataset):
                 else:
                     self.list = self.list[:810]
                     print('abnormal list for ucf')
+                    print(self.list)
+            elif self.dataset == 'my_sht':
+                if self.is_normal:
+                    self.list = self.list[63:]
+                    print('normal list for shanghai tech')
+                    print(self.list)
+                else:
+                    self.list = self.list[:63]
+                    print('abnormal list for shanghai tech')
                     print(self.list)
 
     def __getitem__(self, index):
