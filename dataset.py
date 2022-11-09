@@ -4,6 +4,7 @@ import numpy as np
 from utils import process_feat
 import torch
 from torch.utils.data import DataLoader
+from glob import glob
 torch.set_default_tensor_type('torch.FloatTensor')
 
 
@@ -15,6 +16,7 @@ class Dataset(data.Dataset):
         if self.dataset == 'sht':
             if test_mode:
                 self.rgb_list_file = 'list/shanghai-i3d-test-10crop.list'
+                self.annroot = 'E:/137/dataset/VAD/ShanghaiTech/annotations/test_frame_mask/'
             else:
                 self.rgb_list_file = 'list/shanghai-i3d-train-10crop.list'
         elif self.dataset == 'ucf':
@@ -35,6 +37,7 @@ class Dataset(data.Dataset):
         elif self.dataset == 'my_sht':
             if test_mode:
                 self.rgb_list_file = 'list/my_shanghai-i3d-test-10crop.list'
+                self.annroot = 'E:/137/dataset/VAD/ShanghaiTech/annotations/test_frame_mask/'
             else:
                 self.rgb_list_file = 'list/my_shanghai-i3d-train-10crop.list'
 
@@ -93,10 +96,14 @@ class Dataset(data.Dataset):
                     self.list = self.list[:63]
                     print('abnormal list for shanghai tech')
                     print(self.list)
+        else:
+            if self.dataset == 'sht' or self.dataset == 'my_sht':
+                abnormal_videos = sorted(glob(os.path.join(self.annroot, '*.npy')))
+                self.abnormal_videos = [os.path.splitext(os.path.basename(ann))[0] for ann in abnormal_videos]
 
     def __getitem__(self, index):
 
-        label = self.get_label()  # get video level label 0/1
+        label = self.get_label(index)  # get video level label 0/1
 
         features = np.load(self.list[index].strip('\n'), allow_pickle=True)
         features = np.array(features, dtype=np.float32)  # (t, 10, f) or (t, f)
@@ -137,7 +144,7 @@ class Dataset(data.Dataset):
         if self.tranform is not None:
             features = self.tranform(features)
         if self.test_mode:
-            return features
+            return features, label
         else:
             # process 10-cropped snippet feature
             features = features.transpose(1, 0, 2)  # (t, 10, f) -> (10, t, f)
@@ -149,14 +156,31 @@ class Dataset(data.Dataset):
 
             return divided_features, label
 
-    def get_label(self):
-
-        if self.is_normal:
-            label = torch.tensor(0.0)
+    def get_label(self, index):
+        if self.test_mode:
+            if self.dataset == 'sht' or self.dataset == 'my_sht':
+                video_name = os.path.splitext(os.path.basename(self.list[index].strip()))[0]
+                if self.dataset == 'sht':
+                    video_name = video_name.split('_i3d')[0]
+                if video_name in self.abnormal_videos:
+                    return torch.tensor(1.0)
+                else:
+                    return torch.tensor(0.0)
+            if self.dataset == 'ucf' or self.dataset == 'my_ucf':
+                video_name = os.path.splitext(os.path.basename(self.list[index].strip()))[0]
+                if self.dataset == 'ucf':
+                    video_name = video_name.split('_i3d')[0]
+                if 'Normal' in video_name:
+                    return torch.tensor(0.0)
+                else:
+                    return torch.tensor(1.0)
         else:
-            label = torch.tensor(1.0)
+            if self.is_normal:
+                label = torch.tensor(0.0)
+            else:
+                label = torch.tensor(1.0)
 
-        return label
+            return label
 
     def __len__(self):
         return len(self.list)

@@ -4,18 +4,32 @@ from sklearn.metrics import auc, roc_curve, precision_recall_curve
 import numpy as np
 
 def test(dataloader, model, args, viz, device):
+    all_raw_features = []
+    all_features = []
+    all_labels = []
+
     with torch.no_grad():
         model.eval()
         pred = torch.zeros(0, device=device)
 
-        for i, input in enumerate(dataloader):
+        for i, (input, label) in enumerate(dataloader):
             input = input.to(device)  # (b, 10, n, f)
+            bs, ncrops, t, f = input.size()
             input = input.permute(0, 2, 1, 3)
             score_abnormal, score_normal, feat_select_abn, feat_select_normal, logits, fm_select_abn, fm_select_nor, feat_magnitudes, features, attn, neg_log_likelihood, cls_scores = model(inputs=input)
+            raw_features = input.mean(1).mean(1)
+            all_raw_features.append(raw_features.cpu())
+            features = features.view(bs, ncrops, t, -1).mean(1).mean(1)  # (b, d)
+            all_features.append(features.cpu())
+            all_labels.append(label.cpu())
             cls_scores = cls_scores.squeeze()  # (1, 1, 1) -> ()
             logits = logits.squeeze()  # (1, n, 1) -> (n)
             sig = logits
             pred = torch.cat((pred, sig))
+
+        all_raw_features = torch.cat(all_raw_features)
+        all_features = torch.cat(all_features)
+        all_labels = torch.cat(all_labels)
 
         if args.dataset == 'sht':
             gt = np.load('list/gt-sh.npy')
@@ -54,7 +68,10 @@ def test(dataloader, model, args, viz, device):
             'scores': pred,
             'gt': gt,
             'roc': (tpr, fpr),
-            'p-r': (precision, recall)
+            'p-r': (precision, recall),
+            'raw_features': all_raw_features,
+            'features': all_features,
+            'labels': all_labels
         }
 
         return rec_auc, results
