@@ -8,10 +8,22 @@ def test(dataloader, model, args, viz, device):
     all_features = []
     all_labels = []
 
+    if args.dataset == 'sht':
+        gt = np.load('list/gt-sh.npy')
+    elif args.dataset == 'ucf':
+        gt = np.load('list/gt-ucf.npy')
+    elif args.dataset == 'xdv':
+        gt = np.load('list/gt-xdv.npy')
+    elif args.dataset == 'my_ucf':
+        gt = np.load('list/my_gt-ucf.npy')
+    elif args.dataset == 'my_sht':
+        gt = np.load('list/my_gt-sht.npy')
+
     with torch.no_grad():
         model.eval()
         pred = torch.zeros(0, device=device)
 
+        start_index = 0
         for i, (input, label) in enumerate(dataloader):
             input = input.to(device)  # (b, 10, n, f)
             bs, ncrops, t, f = input.size()
@@ -25,22 +37,27 @@ def test(dataloader, model, args, viz, device):
             cls_scores = cls_scores.squeeze()  # (1, 1, 1) -> ()
             logits = logits.squeeze()  # (1, n, 1) -> (n)
             sig = logits
+
+            y = np.repeat(logits.cpu().numpy(), 16)
+            y_gt = gt[start_index:start_index + logits.shape[0] * 16]
+            x = np.arange(logits.shape[0] * 16)
+            y_1 = np.ones_like(x)
+            y_0 = np.zeros_like(x)
+
+            plt.figure(1, figsize=(8, 4))
+            plt.clf()
+            plt.plot(x, y)
+            plt.ylim(0, 1)
+            plt.fill_between(x, y_1, y_0, where=(y_gt == 1), color='red', alpha=0.1)
+            plt.tight_layout()
+            plt.show()
+            start_index += logits.shape[0] * 16
+
             pred = torch.cat((pred, sig))
 
         all_raw_features = torch.cat(all_raw_features)
         all_features = torch.cat(all_features)
         all_labels = torch.cat(all_labels)
-
-        if args.dataset == 'sht':
-            gt = np.load('list/gt-sh.npy')
-        elif args.dataset == 'ucf':
-            gt = np.load('list/gt-ucf.npy')
-        elif args.dataset == 'xdv':
-            gt = np.load('list/gt-xdv.npy')
-        elif args.dataset == 'my_ucf':
-            gt = np.load('list/my_gt-ucf.npy')
-        elif args.dataset == 'my_sht':
-            gt = np.load('list/my_gt-sht.npy')
 
         pred = list(pred.cpu().detach().numpy())
         pred = np.repeat(np.array(pred), 16)

@@ -26,7 +26,7 @@ if __name__ == '__main__':
     setup_seed(137)
 
     args = option.parser.parse_args()
-    viz = Visualizer(env=args.dataset + ' 10 crop', use_incoming_socket=False)
+    # viz = Visualizer(env=args.dataset + ' 10 crop', use_incoming_socket=False)
     config = Config(args)
 
     train_nloader = DataLoader(Dataset(args, test_mode=False, is_normal=True),
@@ -57,12 +57,12 @@ if __name__ == '__main__':
     output_path = './log/'   # put your own path here
     if not os.path.exists(output_path):
         os.makedirs(output_path)
-    auc, results = test(test_loader, model, args, viz, device)
+    auc, results = test(test_loader, model, args, None, device)
 
-    viz.lines('scores', results['scores'])
-    viz.lines('gt', results['gt'])
-    viz.plot_lines('pr_auc', results['pr_auc'])
-    viz.plot_lines('auc', results['auc'])
+    # viz.lines('scores', results['scores'])
+    # viz.lines('gt', results['gt'])
+    # viz.plot_lines('pr_auc', results['pr_auc'])
+    # viz.plot_lines('auc', results['auc'])
 
     for step in tqdm(
             range(1, args.max_epoch + 1),
@@ -79,27 +79,28 @@ if __name__ == '__main__':
         if (step - 1) % len(train_aloader) == 0:
             loadera_iter = iter(train_aloader)
 
-        losses = train(loadern_iter, loadera_iter, model, args.batch_size, optimizer, viz, device, args)
+        losses = train(loadern_iter, loadera_iter, model, args.batch_size, optimizer, None, device, args)
 
         if (step - 1) % args.plot_freq == 0:
-            viz.plot_lines('loss', losses['loss'].item())
-            viz.plot_lines('loss_a2b', losses['loss_a2b'].item())
-            viz.plot_lines('loss_a2n', losses['loss_a2n'].item())
-            viz.plot_lines('loss_n2b', losses['loss_n2b'].item())
-            viz.plot_lines('loss_n2a', losses['loss_n2a'].item())
-            viz.plot_lines('cls_loss', losses['cls_loss'].item())
-            viz.plot_lines('cls_loss2', losses['cls_loss2'].item())
-            viz.plot_lines('rtfm_loss', losses['rtfm_loss'].item())
-            viz.plot_lines('smooth loss', losses['smooth loss'].item())
-            viz.plot_lines('sparsity loss', losses['sparsity loss'].item())
+            # viz.plot_lines('loss', losses['loss'].item())
+            # viz.plot_lines('loss_a2b', losses['loss_a2b'].item())
+            # viz.plot_lines('loss_a2n', losses['loss_a2n'].item())
+            # viz.plot_lines('loss_n2b', losses['loss_n2b'].item())
+            # viz.plot_lines('loss_n2a', losses['loss_n2a'].item())
+            # viz.plot_lines('cls_loss', losses['cls_loss'].item())
+            # viz.plot_lines('cls_loss2', losses['cls_loss2'].item())
+            # viz.plot_lines('rtfm_loss', losses['rtfm_loss'].item())
+            # viz.plot_lines('smooth loss', losses['smooth loss'].item())
+            # viz.plot_lines('sparsity loss', losses['sparsity loss'].item())
+            pass
 
         if step % 5 == 0 and step > 200:
 
-            auc, results = test(test_loader, model, args, viz, device)
+            auc, results = test(test_loader, model, args, None, device)
 
-            viz.lines('scores', results['scores'])
-            viz.plot_lines('pr_auc', results['pr_auc'])
-            viz.plot_lines('auc', results['auc'])
+            # viz.lines('scores', results['scores'])
+            # viz.plot_lines('pr_auc', results['pr_auc'])
+            # viz.plot_lines('auc', results['auc'])
 
             test_info["epoch"].append(step)
             test_info["test_AUC"].append(auc)

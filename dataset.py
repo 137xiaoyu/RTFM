@@ -106,6 +106,7 @@ class Dataset(data.Dataset):
         label = self.get_label(index)  # get video level label 0/1
 
         features = np.load(self.list[index].strip('\n'), allow_pickle=True)
+        print(os.path.basename(self.list[index].strip('\n')))
         features = np.array(features, dtype=np.float32)  # (t, 10, f) or (t, f)
 
         # if self.dataset == 'sht':
