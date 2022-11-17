@@ -1,7 +1,17 @@
+import matplotlib
 import matplotlib.pyplot as plt
 import torch
 from sklearn.metrics import auc, roc_curve, precision_recall_curve
 import numpy as np
+from matplotlib.font_manager import FontProperties
+
+
+matplotlib.rc("font", family='Times New Roman')  # 显示中文
+matplotlib.rcParams['axes.unicode_minus'] = False  # 显示符号
+matplotlib.rcParams['font.size'] = 10.0
+
+chinese_font_properties = FontProperties(fname='C:/Windows/Fonts/simsun.ttc')
+
 
 def test(dataloader, model, args, viz, device):
     all_raw_features = []
@@ -48,6 +58,8 @@ def test(dataloader, model, args, viz, device):
             plt.clf()
             plt.plot(x, y)
             plt.ylim(0, 1)
+            plt.xlabel("时间（帧）", fontproperties=chinese_font_properties)
+            plt.ylabel("异常分数", fontproperties=chinese_font_properties)
             plt.fill_between(x, y_1, y_0, where=(y_gt == 1), color='red', alpha=0.1)
             plt.tight_layout()
             plt.show()
